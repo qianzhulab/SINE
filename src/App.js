@@ -4,7 +4,6 @@ import { Divider, AppBar, Checkbox, ListItemText, Toolbar,TextField, Select, Men
 import axios from 'axios';
 import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, useParams} from 'react-router-dom';
 import io from 'socket.io-client';
-import { v4 as uuidv4 } from 'uuid'; 
 import ResultsPage from './results'; // Updated to ResultsPage for clarity
 
 
@@ -40,7 +39,7 @@ function App() {
     'Head and neck',
     'Breast – lymph node mets',
     'Colorectal – liver mets',
-    'Brain – glioblastoma',
+    'Brain - glioblastoma',
     'Brain – NF1 neurofibroma',
     'Brain – medulloblastoma',
     'Oral squamous cell',
@@ -56,10 +55,11 @@ function App() {
     'Lymphoma',
   ]);
   const navigate = useNavigate();
-  const [query1, setQuery1] = useState(''); // State for query 1 in tab 2
-  const [query2, setQuery2] = useState(''); // State for query 2 in tab 2
+  const [queries, setQueries] = useState(["", ""]);
   const [activeTab, setActiveTab] = useState(0); // State to control tabs
   const [advancedSettingsVisible, setAdvancedSettingsVisible] = useState(false); 
+  const [numInputs, setNumInputs] = useState(2); // Number of input boxes, default to 2
+  const [inputs, setInputs] = useState(['', '']); // Store values for dynamic input boxes
 
 
 
@@ -96,7 +96,7 @@ function App() {
       'Head and neck',
       'Breast – lymph node mets',
       'Colorectal – liver mets',
-      'Brain – glioblastoma',
+      'Brain - glioblastoma',
       'Brain – NF1 neurofibroma',
       'Brain – medulloblastoma',
       'Oral squamous cell',
@@ -123,6 +123,12 @@ function App() {
 
   }, []);
 
+  const handleQueryChange = (index, value) => {
+    const updatedQueries = [...queries];
+    updatedQueries[index] = value;
+    setQueries(updatedQueries);
+  };
+
 
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
@@ -130,17 +136,26 @@ function App() {
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
+    if (!searchTerm.trim()) {
+      window.alert("Query is empty");
+      return;
+    }
+
+    if (!selectedDataset || selectedDataset.length === 0) {
+      window.alert("No dataset selected");
+      return;
+    }
+
     setIsLoading(true);
     setProgress(5); // Reset progress at the start
 
+    
 
     const data = {
-      searchTerm: activeTab === 1 ? searchTerm.trim() : `${query1} ${query2}`.trim(), // Use combined queries for tab 2 
-      selectedDatasets: selectedDataset ,
+      searchTerm: searchTerm.trim(),     // The search term
+      selectedDatasets: selectedDataset,  // The array of selected datasets
       sessionID
     };
-
-
 
     axios.post('http://localhost:3001/search', data)
       .then(response => {
@@ -150,15 +165,33 @@ function App() {
         }
       })
       .catch(error => {
-        console.error('Error:', error);
         setIsLoading(false);
-      });
+
+        // Handle specific "No datasets selected" error from the backend
+        if (error.response && error.response.status === 400 && error.response.data.message === 'No datasets selected') {
+          window.alert("Please select at least one dataset.");
+        } else {
+          console.error('Error:', error);
+        }
+    });
   };
 
 
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
+  };
+
+  const handleNumInputsChange = (event) => {
+    const newNumInputs = event.target.value;
+    setNumInputs(newNumInputs);
+    // Adjust the `inputs` state to match the number of input boxes
+    setInputs(Array(newNumInputs).fill(''));
+  };
+    const handleInputChange = (index, value) => {
+    const newInputs = [...inputs];
+    newInputs[index] = value;
+    setInputs(newInputs);
   };
 
 
@@ -210,7 +243,7 @@ function App() {
           <Tab label="Option 2" />
         </Tabs>
 
-        {/* Tab Panel 1: Single Search Bar */}
+        {/* Tab Panel 1:  Search bar */}
         {activeTab === 1 && (
           <Box component="form" onSubmit={handleSearchSubmit} sx={{ display: 'flex', alignItems: 'center', mt: 2 , width:'75%'}}>
             <Typography variant="body2" sx={{ mr: 2 , textAlign:'left'}}>Enter a Query, gene or gene-set to test spatial co-localization:</Typography>
@@ -229,44 +262,254 @@ function App() {
           </Box>
         )}
 
-        {/* Tab Panel 2: Two Query Inputs in One Row */}
+        {/* Tab Panel 2: Query inputs*/}
         {activeTab === 0 && (
-          <Box component="form" onSubmit={handleSearchSubmit} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'left', mt: 2 }}>
-            <Typography variant="body2" sx={{ mr: 2 , mt:2}}>Enter Query, a Cell-Cell Interaction:</Typography>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '20%' }}>
-              <Typography variant="caption" fontSize={14} sx={{ mb: 0 }}>Cell Type 1 Markers</Typography>
-              <TextField
-                value={query1}
-                onChange={(e) => setQuery1(e.target.value)}
-                variant="outlined"
-                size="small"
-                sx={{ backgroundColor: 'white', borderRadius: 2 }}
-              />
-            </Box>
-
-            {/* Long Dash between the boxes, with no margin */}
-            <Typography sx={{ fontSize: '1.5rem', mx: 1 }}>______</Typography>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '20%' }}>
-              <Typography variant="caption" fontSize={14}sx={{ mb: 0, }}>Cell Type 2 Markers</Typography>
-              <TextField
-                value={query2}
-                onChange={(e) => setQuery2(e.target.value)}
-              
-                variant="outlined"
-                size="small"
-                sx={{ backgroundColor: 'white', borderRadius: 2 }}
-              />
-            </Box>
-
-            {/* Search Button in the same row */}
-            <Button type="submit" variant="contained" color="primary" sx={{ ml: 2 , mt:2}} disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Search'}
-            </Button>
+        <Box component="form" onSubmit={handleSearchSubmit} sx={{ mt: 2, width: '100%' }}>
+          {/* Number of inputs selector */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Typography variant="body2" sx={{ mr: 2 }}>Select number of  cell types:</Typography>
+            <Select value={numInputs} onChange={handleNumInputsChange}>
+              {[2, 3, 4, 5].map((num) => (
+                <MenuItem key={num} value={num}>{num}</MenuItem>
+              ))}
+            </Select>
           </Box>
-        )}
+    
+          {/* Render different shapes based on the number of inputs */}
+          <Box sx={{ display: 'grid', gap: 2, justifyContent: 'left', mt: 2, position: 'relative' }}>
+      
+            {numInputs === 2 && (
+            
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
+                    {/* Left-aligned instruction text */}
+                    <Typography variant="body2" sx={{ mt: 2, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                        Enter Query, a Cell-Cell Interaction:
+                    </Typography>
 
+              <Box sx={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                <svg width="100%" height="100%" viewBox="0 0 200 200" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                  <line x1="0" y1="130" x2="150" y2="130" stroke="black" strokeWidth="6" />
+                </svg>
+                <Box sx={{ ml:10, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 1 Markers</Typography>
+                  <TextField
+                    value={queries[0] || ""}
+                    onChange={(e) => handleQueryChange(0, e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 2 Markers</Typography>
+                  <TextField
+                    value={queries[1] || ""}
+                    onChange={(e) => handleQueryChange(1, e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+              </Box>
+              </Box>
+            )}
+          {numInputs === 3 && (
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
+              {/* Left-aligned instruction text */}
+              <Typography variant="body2" sx={{ mt: 2, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                Enter Query, a <b>Set</b> of Cell-Cell Interactions:
+              </Typography>
+
+              <Box sx={{ ml:10 ,position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              
+                <svg width="100%" height="100%" viewBox="0 0 200 200" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                  <line x1="0" y1="60" x2="150" y2="60" stroke="black" strokeWidth="4" />
+                  <line x1="-75" y1="40" x2="-75" y2="150" stroke="black" strokeWidth="4" />
+                  <line x1="350" y1="40" x2="90" y2="170" stroke="black" strokeWidth="4" />
+                </svg>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 1 Markers</Typography>
+                  <TextField
+                    value={queries[0] || ""}
+                    onChange={(e) => handleQueryChange(0, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 2 Markers</Typography>
+                  <TextField
+                    value={queries[1] || ""}
+                    onChange={(e) => handleQueryChange(1, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifySelf: 'center', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 3 Markers</Typography>
+                  <TextField
+                    value={queries[2] || ""}
+                    onChange={(e) => handleQueryChange(2, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+              </Box>
+              </Box>
+            )}
+
+              {numInputs === 4 && (
+
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
+                {/* Left-aligned instruction text */}
+                <Typography variant="body2" sx={{ mt: 2, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                  Enter Query, a <b>Set</b> of Cell-Cell Interactions:
+                </Typography>
+              <Box sx={{ ml:4, position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 2 , justifyItems:'center'}}>
+                <svg width="100%" height="100%" viewBox="0 0 200 200" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                  <line x1="50" y1="60" x2="150" y2="60" stroke="black" strokeWidth="4" />
+                  <line x1="-70" y1="70" x2="-70" y2="150" stroke="black" strokeWidth="4" />
+                  <line x1="300" y1="70" x2="300" y2="150" stroke="black" strokeWidth="4" />
+                  <line x1="50" y1="170" x2="150" y2="170" stroke="black" strokeWidth="4" />
+                </svg>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 1 Markers</Typography>
+                  <TextField
+                    value={queries[0] || ""}
+                    onChange={(e) => handleQueryChange(0, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 2 Markers</Typography>
+                  <TextField
+                    value={queries[1] || ""}
+                    onChange={(e) => handleQueryChange(1, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 3 Markers</Typography>
+                  <TextField
+                    value={queries[2] || ""}
+                    onChange={(e) => handleQueryChange(2, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 4 Markers</Typography>
+                  <TextField
+                    value={queries[3] || ""}
+                    onChange={(e) => handleQueryChange(3, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+              </Box>
+              </Box>
+            )}
+
+            {numInputs === 5 && (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
+                {/* Left-aligned instruction text */}
+                    <Typography variant="body2" sx={{ mt: 2, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                        Enter Query, a <b>Set</b> of Cell-Cell Interactions:
+                            </Typography>
+              
+              
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2, justifyItems: 'center' }}>
+                <svg width="100%" height="100%" viewBox="0 0 200 200" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                  <line x1="-100" y1="60" x2="500" y2="60" stroke="black" strokeWidth="4" />
+                  <line x1="-50" y1="60" x2="-50" y2="150" stroke="black" strokeWidth="4" />
+                  <line x1="300" y1="60" x2="300" y2="150" stroke="black" strokeWidth="4" />
+                  <line x1="100" y1="170" x2="200" y2="170" stroke="black" strokeWidth="4" />
+                  <line x1="200" y1="60" x2="400" y2="60" stroke="black" strokeWidth="4" />
+                  <line x1="800" y1="40" x2="400" y2="200" stroke="black" strokeWidth="4" />
+                </svg>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 1 Markers</Typography>
+                  <TextField
+                    value={queries[0] || ""}
+                    onChange={(e) => handleQueryChange(0, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 2 Markers</Typography>
+                  <TextField
+                    value={queries[1] || ""}
+                    onChange={(e) => handleQueryChange(1, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 3 Markers</Typography>
+                  <TextField
+                    value={queries[2] || ""}
+                    onChange={(e) => handleQueryChange(2, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 4 Markers</Typography>
+                  <TextField
+                    value={queries[3] || ""}
+                    onChange={(e) => handleQueryChange(3, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5 }}>Cell Type 5 Markers</Typography>
+                  <TextField
+                    value={queries[4] || ""}
+                    onChange={(e) => handleQueryChange(4, e.target.value)}
+                    
+                    variant="outlined"
+                    size="small"
+                    sx={{ backgroundColor: 'white', borderRadius: 2 }}
+                  />
+                </Box>
+              </Box>
+              </Box>
+            )}
+
+          
+          </Box>
+
+          <Button type="submit" variant="contained" color="primary" sx={{ mt: 2 }} disabled={isLoading}>
+            {isLoading ? 'Processing...' : 'Search'}
+          </Button>
+        </Box>
+      )}
 
 
     {/* Second Row: Dropdown options */}

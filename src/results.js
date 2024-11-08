@@ -53,7 +53,7 @@ const ResultsPage = () => {
     'Head and neck',
     'Breast – lymph node mets',
     'Colorectal – liver mets',
-    'Brain – glioblastoma',
+    'Brain - glioblastoma',
     'Brain – NF1 neurofibroma',
     'Brain – medulloblastoma',
     'Oral squamous cell',
@@ -95,7 +95,7 @@ const ResultsPage = () => {
   };
 
   useEffect(() => {
-    
+
     console.log('Generated or retrieved sessionID:', sessionID);
 
     }, [navigate, sessionID]);
@@ -139,7 +139,7 @@ const ResultsPage = () => {
       'Head and neck',
       'Breast – lymph node mets',
       'Colorectal – liver mets',
-      'Brain – glioblastoma',
+      'Brain - glioblastoma',
       'Brain – NF1 neurofibroma',
       'Brain – medulloblastoma',
       'Oral squamous cell',
@@ -168,7 +168,8 @@ const ResultsPage = () => {
         fetchCustomization();
         fetchPlots();
         fetchGeneList();
-        fetchRaceInformation(); 
+        fetchRaceInformation('GSM'); 
+        fetchRaceInformation('UFK'); 
       } else {
         console.log('Processing complete without message');
       }
@@ -244,6 +245,39 @@ const ResultsPage = () => {
     }
   };
 
+ const fetchRaceInformationRavi = async () => {
+    try {
+      const response = await axios.get('http://localhost:3001/metadata.Ravi.txt');
+      const rows = response.data.split('\n').filter(row => row.trim() !== ''); // Split by newlines, remove empty rows
+  
+      const raceInfoMap = {};
+      rows.forEach(row => {
+        // First, split by tabs
+        let columns = row.split(/\t+/).map(col => col.trim());
+  
+        if (columns.length < 8) return; // Skip rows with missing columns
+  
+        // Extract the first 6 columns and the last one (8th)
+        const datasetName = columns[0]; // GSM.ID
+        const col1to6 = columns.slice(0, 6).join(' | '); // First 6 columns
+        const seventhColumn = columns[6]; // Keep 7th column (Tx) as-is
+        const lastColumn = columns[7]; // Last column (Overall Survival)
+  
+        // Reformat the info without merging the 7th column
+        const info = `${col1to6} | ${seventhColumn} | ${lastColumn}`;
+        
+        // Map dataset name to its information
+        raceInfoMap[datasetName] = info;
+      });
+  
+      // Store the mapping in the state
+      setRaceInformation(raceInfoMap);
+      console.log('Race information fetched:', raceInfoMap);
+    } catch (error) {
+      console.error('Error fetching race information:', error);
+    }
+  };
+
   const fetchPlots = async () => {
     try {
       // Fetch image list for plots from the first set
@@ -288,6 +322,16 @@ const ResultsPage = () => {
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
+    if (!searchTerm.trim()) {
+      window.alert("Query is empty");
+      return;
+    }
+
+    if (!selectedDataset || selectedDataset.length === 0) {
+      window.alert("No dataset selected");
+      return;
+    }
+
     setIsLoading(true);
     setProgress(5); // Reset progress at the start
 
@@ -307,9 +351,15 @@ const ResultsPage = () => {
         }
       })
       .catch(error => {
-        console.error('Error:', error);
         setIsLoading(false);
-      });
+
+        // Handle specific "No datasets selected" error from the backend
+        if (error.response && error.response.status === 400 && error.response.data.message === 'No datasets selected') {
+          window.alert("Please select at least one dataset.");
+        } else {
+          console.error('Error:', error);
+        }
+    });
   };
 
   const handleSortByFoldChange = () => {
@@ -473,6 +523,7 @@ const handleScrollSync = (sourceRef, targetRef) => {
 
     fetchCustomization(); // Fetch the updated customization settings
     fetchRaceInformation();
+    fetchRaceInformationRavi();
     fetchPlots(); // Fetch the updated plot images
     fetchGeneList();
 
@@ -980,20 +1031,36 @@ const handleScrollSync = (sourceRef, targetRef) => {
         return (
           <Box key={index} sx={{ textAlign: 'center', marginRight: '1px' }}>
             {/* Display the extracted race information */}
-            <Typography variant="body2" sx={{ marginBottom: '0px', fontSize: '9px'}}>
-              {`${raceInformation[datasetName]?.split('|')[0]} | ${raceInformation[datasetName]?.split('|')[1]} 
-              | ${raceInformation[datasetName]?.split('|')[2]} | ${raceInformation[datasetName]?.split('|')[3]} 
-              | ${raceInformation[datasetName]?.split('|')[4]} | ${raceInformation[datasetName]?.split('|')[5]}
-              | ${raceInformation[datasetName]?.split('|')[7]}
-              `}
-            </Typography>
+            <Typography variant="body2" sx={{ marginBottom: '0px', fontSize: '9px' }}>
+                {raceInformation[datasetName]
+                    ? datasetName.startsWith('GSM')
+                    ? `${raceInformation[datasetName]?.split('|')[0]} | ${raceInformation[datasetName]?.split('|')[1]} 
+                      | ${raceInformation[datasetName]?.split('|')[2]} | ${raceInformation[datasetName]?.split('|')[3]} 
+                      | ${raceInformation[datasetName]?.split('|')[4]} | ${raceInformation[datasetName]?.split('|')[5]} 
+                      | ${raceInformation[datasetName]?.split('|')[7]}`
+                    : `${raceInformation[datasetName]?.split('|')[0]} | ${raceInformation[datasetName]?.split('|')[1]} 
+                      | ${raceInformation[datasetName]?.split('|')[2]} | ${raceInformation[datasetName]?.split('|')[3]} 
+                      | ${raceInformation[datasetName]?.split('|')[4]}`
+                  : ""
+                }
+  </Typography>
 
-        {/* Display the second part of the race information (the 6th column) on a new line */}
-        <Typography variant="body2" sx={{ marginBottom: '0px', fontSize: '10px' }}>
-            {raceInformation[datasetName]?.split('|')[6] === ' None '
-              ? 'None'
-              : `${raceInformation[datasetName]?.split('|')[6]?.substring(0, 35)}...`}
-        </Typography>
+
+              {/* Display the second part of race information or fallback to dataset name */}
+              <Typography variant="body2" sx={{ marginBottom: '0px', fontSize: '10px' }}>
+              {raceInformation[datasetName]
+                  ? datasetName.startsWith('GSM')
+                  ? raceInformation[datasetName]?.split('|')[6] === ' None '
+                    ? 'None'
+                    : raceInformation[datasetName]?.split('|')[6].length > 35
+                      ? `${raceInformation[datasetName]?.split('|')[6].substring(0, 35)}...`
+                      : raceInformation[datasetName]?.split('|')[6]
+                  : raceInformation[datasetName]?.split('|')[6].length > 35  // Example for UFK; adjust as needed
+                    ? `${raceInformation[datasetName]?.split('|')[6].substring(0, 35)}...`
+                    : `${raceInformation[datasetName]?.split('|')[5]} | ${raceInformation[datasetName]?.split('|')[6]} | ${raceInformation[datasetName]?.split('|')[7]}`
+                : datasetName
+}
+              </Typography>
                     
             {/* Add cache-busting timestamp to the image URL */}
             <img
@@ -1058,7 +1125,7 @@ const handleScrollSync = (sourceRef, targetRef) => {
         
 
       {/* Flexbox container to position gene list and table side by side */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', mt: 0 }}>
+      <Box sx={{ display: 'flex', mt: 0 }}>
       {/* Gene List and Scores Container */}
       <Box
         ref={geneListRef}  // Attach the ref to the gene list container
@@ -1098,10 +1165,10 @@ const handleScrollSync = (sourceRef, targetRef) => {
       {/* Main Table - Image Container */}
       <Box
         ref={imageContainerRef}  // Attach the ref to the image container
-        sx={{ flexGrow: 1, display: 'inline-flex', flexDirection: 'column', ml: 2, height: '88vh', overflowY: 'auto' }}
+        
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, mt: 1.8 }}>
-          <Box sx={{ display: 'flex' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, mt: 1.8, ml:2, overflowY: "auto"}}>
+
             {currentPlotsSet3.map((imgUrl, index) => {
               const datasetName = imgUrl.split('/').pop().split('.')[0];
               const timestamp = Date.now(); // Cache busting
@@ -1116,7 +1183,7 @@ const handleScrollSync = (sourceRef, targetRef) => {
                 </Box>
               );
             })}
-          </Box>
+
         </Box>
       </Box>
     </Box>
