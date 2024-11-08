@@ -206,10 +206,15 @@ app.post('/search', (req, res) => {
 
   combinedDatasetStream.end(); // Close the stream after writing all content
 
+  const queryFilePath = path.join(__dirname, `sample.query_${sessionID}.list`);
   // After combining the dataset files, proceed with processing
   combinedDatasetStream.on('finish', () => {
-    const queryFilePath = path.join(__dirname, `sample.query_${sessionID}.list`);
-    const queryContent = searchTerm.trim().split(/\s+/).join(' '); 
+    const queryContent = Array.isArray(searchTerm) && searchTerm.length > 1
+    ? searchTerm.map(query => query.replace(/\s+/g, ' ').toUpperCase()).join('\n') 
+    : searchTerm.trim().split(/\s+/).join(' '); 
+
+ //   const queryFilePath = path.join(__dirname, `sample.query_${sessionID}.list`);
+  //  const queryContent = searchTerm.trim().split(/\s+/).join(' '); 
     fs.writeFileSync(queryFilePath, queryContent);
 
     const scriptPath = path.resolve(__dirname, 'diffexpr.py');
@@ -298,7 +303,7 @@ function generateImageLists(sID) {
   });
 
   fs.readdir(outputPlots2Dir, (err, files) => {
-    if (err) {
+    if (err) {f
       console.error('Unable to scan directory: ' + err);
       return;
     }

@@ -42,8 +42,8 @@ def read_expression(n):
 def save_dataset(dset):
     print(f"Loading and saving data for dataset: {dset}")
     
-    mat_file = f"dir_{dset}/Giotto_norm_expr.txt"
-    coord_file = f"dir_{dset}/spatial/tissue_positions_list.csv"
+    mat_file = f"dataset.Ravi/{dset}/Xnorm.txt"
+    coord_file = f"dataset.Ravi/{dset}/spatial/tissue_positions_list.csv"
     
     # Ensure the files exist before processing
     if not os.path.exists(mat_file) or not os.path.exists(coord_file):
@@ -74,7 +74,7 @@ def load_all_datasets(gsm_list_file):
         save_dataset(dset)
 
 if __name__ == '__main__':
-    load_all_datasets('gsm.list')
+    load_all_datasets('ravi.list')
 
 
 
